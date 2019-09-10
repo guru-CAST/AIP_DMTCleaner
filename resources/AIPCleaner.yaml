@@ -1,0 +1,13 @@
+Dashboard:
+  URL: http://localhost:8090/CAST-Health-Engineering/rest
+  username: admin
+  password: cast
+  domain: AAD
+ 
+CMS:
+  delivery_folder: D:\CAST\CASTMS\Delivery
+  pmx_file: D:\CAST\CONFIG\cast-ms.connectionProfiles.pmx
+ 
+other_settings:
+  log_folder: d:\cast\logs\AIPCleaner
+  cast_home: d:\CAST\8.3
