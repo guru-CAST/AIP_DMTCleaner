@@ -1,25 +1,14 @@
 """
-Name: AIPSnapshotCleaner.py
+Name: AIP_DMTCleaner.py
 
-Author: Guru Pai
+Author: Guru Pai/Nevin Kaplan
 
 Date: Thu 05/24/2019 
-
-# TODO
-This python script inserts two background facts into AAD.
-1. 
-2. 
 
 Arguments:
 1. 
 
 NOTE:
-By design, this script populates the background fact for a single app.
-
-Prerequisites:
-1. Before running this script, ensure that you have these two background facts in the application's assessment
-   model and have generated a snapshot using that assessment model.
-2. The app and the new snapshot must be conslidated in the HD that is being used. Be sure to update the HD URL below.
 """
 __version__ = 1.0
 
@@ -125,8 +114,11 @@ def get_apps(apps):
 
             for item in data:
                 name = item['name']
+
+                # If a specific app is to be cleaned up, get info only for that specific app.
                 if (len(app_name) > 0 and app_name.lower() != name.lower()):
                     continue
+
                 id = item['href'].split('/')[-1]
                 db = item['adgDatabase']
                 mngt_schema = db.replace('_central', '_mngt')
@@ -148,6 +140,7 @@ def get_apps(apps):
 
 def get_dmt_info(dmt_info_list):
     """
+    Retreive DMT information from the contents of the DELIVERY folder.
     """
     dmt_app_name = ''
     app_uuid = ''
@@ -169,6 +162,7 @@ def get_dmt_info(dmt_info_list):
     <entry key="43da62fe-173f-43d1-a9f5-599ace271d60_syncId">14</entry>
     <entry key="43da62fe-173f-43d1-a9f5-599ace271d60_uuid">43da62fe-173f-43d1-a9f5-599ace271d60</entry>
     """
+
     try:
         with minidom.parse(delivery_index_file) as dom:
 
@@ -196,7 +190,7 @@ def get_dmt_info(dmt_info_list):
 
                     # When a new application is registerd in AICP, you will 
                     # find an entry for it in index.xml file and an entity file, but nothing else.
-                    # So, the following call may not return any values.
+                    # In such cases, the following call may not return any values.
 
                     get_app_versions(delivery_folder, app_uuid, app_ver_list)
 
@@ -237,7 +231,7 @@ def get_app_versions(delivery_folder, app_uuid, app_ver_list):
     logger.debug('Delivery index File:%s' % ver_index_file)
 
     if not os.path.exists(ver_index_file):
-        logger.warn('This DMT version file does not exist. Please check. Skipping:%s' % ver_index_file)
+        logger.warning('This DMT version file does not exist. Please check. Skipping:%s' % ver_index_file)
         return False
 
     # Read and save all the versions for the given application.
@@ -343,8 +337,10 @@ def cleanup_deliveries(app_name, profile_name, dmt_info, log_folder):
 
     # Form the CLI command
     skipCnt=0
+
     original_list=dmt_info.get_versions()
     sorted_version_list = sorted(original_list, key=lambda x: x.date, reverse=True)
+
     for version in sorted_version_list: 
         # Before initiating the cleanup, update the previousVersionEntry attribute
         # in the entity file, so that the DeleteVersion command works.
@@ -378,7 +374,7 @@ def cleanup_deliveries(app_name, profile_name, dmt_info, log_folder):
 
         logger.debug('CLI Command:%s' % cli_command)
 
-        exec_cli(cli_command)
+        #exec_cli(cli_command)
 
 
 def exec_cli(cli):
@@ -396,7 +392,6 @@ def exec_cli(cli):
     except CalledProcessError as exc:
         logger.error('An error occurred while executing CLI:%d. CLI:%s' % (exc.returncode, exc.cmd))
         
-
 def main():
     global base_url, domain, username, password, CAST_HOME
 
@@ -425,11 +420,17 @@ def main():
 
         # Read the CAST-MS conection profile file to retrieve profile names.
         read_pmx(connection_profiles)
+
+        # TODO:
+        # If a specific app needs to be processed, and the profile that app was not found, DO NOT CONTINUE. 
+
         # Grab names of all apps from the dashboard via REST call.
         get_apps(apps)
-        # Retireve a list of snapshots from the dashboard via REST call.
+
+        # Retireve DMT information from the DELIVERY folder.
         get_dmt_info(dmt_info_list)
 
+        # Start deleting the DMT information for each app.
         for app in apps:
             app_name = app['name']
             logger.info('Processing application:%s' % app_name)
@@ -445,7 +446,7 @@ def main():
                     break
 
             if not (entry_found):
-                logger.warn('DMT entry NOT found for application:%s.. Skipping' % app_name)
+                logger.warning('DMT entry NOT found for application:%s.. Skipping' % app_name)
             else:
                 logger.info('DMT entry found for application:%s' % app_name)
 
@@ -463,7 +464,7 @@ def main():
                     else:
                         cleanup_deliveries(app_name, profile_name, dmt_info, log_folder)
                 else:
-                    logger.warn('A CMS profile entry was not found for app:%s.. Skipping' % app['name'])
+                    logger.warning('A CMS profile entry was not found for app:%s.. Skipping' % app['name'])
 
     except BaseException as ex:
         logger.error('Aborting due to a prior exception. %s' % (str(ex)) )
@@ -476,21 +477,24 @@ if __name__ == "__main__":
     args = sys.argv[1:]
 
     count = len(args)
+    logger.debug('count:%d' % count)
 
     # TODO: Should be able to clanup a single app.
 
     if (count > 0):
         for index, arg in enumerate(args):
+            logger.debug('index:%d' % index)
+
             if (arg == '-drop'):
                 logger.info('The -drop argurment activated. Snapshots will be dropped.')
                 delete_snapshots = True
             elif (arg == '-app'):
-                if (count < index+1):
-                    logger.error('No application for -app argument')
+                if (count <= index + 1):
+                    logger.error('The arugument -app needs to provide an application name')
                     sys.exit(1)
                 else:
                     index += 1
-                    app_name=args[index]
+                    app_name = args[index]
                     logger.info('-app flag found, only deliveries for ' + app_name + ' will be deleted.')
 
     elif (count > 3):
