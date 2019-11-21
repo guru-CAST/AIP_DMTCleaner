@@ -53,4 +53,4 @@ The __-app__ argument should be used to target a specific application. Else, the
 
 The __-archive__ argment is also optional.  If included deliveries will be purged, otherwise they will be permanently deleted.  
 
-The __-cut_date argument is used to indicate which deliveries should be deleted or purged. Only those delivries ealier than the cut date will be acted on. 
+The __-cut_date__ argument is used to indicate which deliveries should be deleted or purged. Only those delivries ealier than the cut date will be acted on. 
