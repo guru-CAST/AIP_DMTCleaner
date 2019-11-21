@@ -44,9 +44,13 @@ Update the __log_folder__ setting in the __other_settings__ section to point to 
 The script can be invoked from the command prompt as follows:
 
 ```
-python AIP_DMTCleaner.py [-drop] [-app application_name]
+python AIP_DMTCleaner.py [-drop] [-archive] [-cut_date YYYY-MM-DD HH:MM][-app application_name]
 ```
 The __-drop__ and the __-app__ arguments are optional.
-Providing the __-drop__ argument informs the script that the deliveries need to dropped. When this argument is not supplied, the script works as usual, except, the deliveries are not dropped - it only prints informational messages, which is useful as a preview feature, which can be used to determine which deliveries will be potentially dropped.
+Providing the __-drop__ argument informs the script that the deliveries need to dropped. When this argument is not supplied, the script only prints informational messages, which is useful as a preview feature, which can be used to determine which deliveries will be potentially dropped.
 
 The __-app__ argument should be used to target a specific application. Else, the script processes all applications.
+
+The __-archive__ argment is also optional.  If included deliveries will be purged, otherwise they will be permanently deleted.  
+
+The __-cut_date argument is used to indicate which deliveries should be deleted or purged. Only those delivries ealier than the cut date will be acted on. 
