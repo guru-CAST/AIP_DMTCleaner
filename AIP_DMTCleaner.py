@@ -37,7 +37,7 @@ shandler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(filename)s [%(funcName)30s:%(lineno)-4d] %(levelname)-8s - %(message)s')
 shandler.setFormatter(formatter)
 logger.addHandler(shandler)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # Global vars
 base_url = ''
@@ -336,32 +336,47 @@ def cleanup_deliveries(app_name, profile_name, dmt_info, log_folder):
     cli_command = ''
 
     # Form the CLI command
-    skipCnt=0
+    # skipCnt=0
 
     original_list=dmt_info.get_versions()
     sorted_version_list = sorted(original_list, key=lambda x: x.date, reverse=True)
 
-    for version in sorted_version_list: 
-        # Before initiating the cleanup, update the previousVersionEntry attribute
-        # in the entity file, so that the DeleteVersion command works.
-        # Otherwise, CMS-CLI will not let us drop the dependent version.
-        try:
-            logger.info('Clearing the previous version for version:%s', version.get_name())
-            version.clear_prev_version()
-        except:
-            raise
+    if not archive_delivery:
+        for version in sorted_version_list: 
+            # Before initiating the cleanup, update the previousVersionEntry attribute
+            # in the entity file, so that the DeleteVersion command works.
+            # Otherwise, CMS-CLI will not let us drop the dependent version.
+            try:
+                logger.info('Clearing the previous version for version:%s', version.get_name())
+                version.clear_prev_version()
+            except:
+                raise
 
+    msg = 'Name: {} Version: {} Date: {} {}: {}'
     for version in sorted_version_list: 
         status = version.get_status()
         if status == 'delivery.StatusReadyForAnalysisAndDeployed':
-            if skipCnt < 5:
-                skipCnt+=1
-                continue
+            version_name = version.get_name()
+            version_date = datetime.strptime(version.date, '%Y-%m-%d %H:%M:%S')
+            if cut_date < version_date:
+                if not activate:
+                    logger.info(msg.format(app_name, version_name, version.get_date(),'Archive' if archive_delivery else 'Delete', 'skipped' ))
+                continue;
+#            if skipCnt < 5:
+#                skipCnt+=1
+#                continue
 #        else: 
 #            continue
 
         cli_command = '"' + CAST_HOME
-        cli_command += '\\cast-ms-cli.exe" DeleteVersion -connectionProfile "'
+        cli_command += '\\cast-ms-cli.exe" '
+
+        if archive_delivery:
+            cli_command += 'PurgeVersion '
+        else:
+            cli_command += 'DeleteVersion '
+        
+        cli_command += '-connectionProfile "'
         cli_command += profile_name
         cli_command += '" -appli '
         cli_command += app_name 
@@ -372,15 +387,16 @@ def cleanup_deliveries(app_name, profile_name, dmt_info, log_folder):
         cli_command += log_folder
         cli_command += '"'
 
-        logger.debug('CLI Command:%s' % cli_command)
-
-        #exec_cli(cli_command)
+        if not activate:
+            logger.info(msg.format(app_name, version_name, version.get_date(),'Archive' if archive_delivery else 'Delete', 'processed' ))
+        else:
+            exec_cli(cli_command)
 
 
 def exec_cli(cli):
     cli_str = ''.join(cli)
     try:
-        logger.info('Calling CLI:%s' % cli_str)
+        logger.debug('Calling CLI:%s' % cli_str)
 
         cli_cmd=run(cli_str, stdout=PIPE, stderr=STDOUT, shell=True, check=True)
 
@@ -458,11 +474,8 @@ def main():
                         profile_name = profile['name']
                         break
 
-                if (profile_name != ''):
-                    if (not delete_snapshots):
-                        logger.info('For information only: application %s versions would be removed if -drop flag were set' % app['name'])
-                    else:
-                        cleanup_deliveries(app_name, profile_name, dmt_info, log_folder)
+                if len(profile_name) > 0:
+                    cleanup_deliveries(app_name, profile_name, dmt_info, log_folder)
                 else:
                     logger.warning('A CMS profile entry was not found for app:%s.. Skipping' % app['name'])
 
@@ -481,13 +494,26 @@ if __name__ == "__main__":
 
     # TODO: Should be able to clanup a single app.
 
+    activate=False
     if (count > 0):
         for index, arg in enumerate(args):
             logger.debug('index:%d' % index)
 
             if (arg == '-drop'):
-                logger.info('The -drop argurment activated. Snapshots will be dropped.')
-                delete_snapshots = True
+                activate = True
+            elif (arg == '-archive'):
+                logger.info('The -archivre argurment activated. Only delivery source will be rmoved, no deliveries will be deleted.')
+                archive_delivery = True
+            elif (arg == '-cut_date'):
+                if (count <= index + 1):
+                    logger.error('The arugument -cut_date needs to provide a value')
+                    sys.exit(1)
+                index += 1
+                try:
+                    cut_date = datetime.strptime(args[index], '%Y-%m-%d %H:%M')
+                except ValueError as ex:
+                    logger.error('-cut_date must be in the format of YYYY-MM-DD HH:MM')
+                    sys.exit(1)
             elif (arg == '-app'):
                 if (count <= index + 1):
                     logger.error('The arugument -app needs to provide an application name')
@@ -496,10 +522,23 @@ if __name__ == "__main__":
                     index += 1
                     app_name = args[index]
                     logger.info('-app flag found, only deliveries for ' + app_name + ' will be deleted.')
+        if activate:
+            run_type = 'ACTIVE'
+        else:
+            run_type = 'DRY'
+        if len(app_name):
+            app_str = app_name
+        else:
+            app_str = 'all'
+        if archive_delivery:
+            op_str = 'archived'
+        else:
+            op_str = 'deleted'
+    
+        logger.info('%s run - all deliveries for %s applications with a date earlier than %s will be %s' % (run_type, app_str, cut_date, op_str))
+        if not activate:
+            logger.info('No actions will be performed unless the -drop parameter argument is used')
 
-    elif (count > 3):
-        logger.error('Invalid number of arguments passed, when expecting one. Aborting.')
-        sys.exit(1)
     else:
         # Zero args passed. Which means that the deliveries should not be deleted.
         # Deliveries marked for deletion will only be listed for INFO ONLY.
