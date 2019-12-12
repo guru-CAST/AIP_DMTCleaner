@@ -5,12 +5,24 @@ Author: Guru Pai/Nevin Kaplan
 
 Date: Thu 05/24/2019 
 
+About:
+DMT cleaner can be used either to delete or purge older versions of source delivered from CAST AIP.
+When deleting a version, the version information is permanently deleted from DMT, includeing source code, logs and config files.
+The purge option (invoked by using the -archive argument) deleted only the source code. The configration information is kept intact.
+
+Refer to https://doc.castsoftware.com/display/DOC83/Automating+CAST+Management+Studio+tasks#AutomatingCASTManagementStudiotasks-DeleteVersion, for complete details
+about the cleanup and purge options.
+
 Arguments:
-1. 
+1. drop - Unless this argument is provided, the deliveries will NOT be dropped. 
+          Skip this argument to perform a DRY run. All steps will be performed, EXCEPT the actual deletion.
+2. archive - Use this argutment to purge deliveries, instead of deleting them.
+3. app  - Use this argument to drop deliveries for a specific application. By default, the action is performed for all apps.
+4. cut_date - Only deliveries older than this date will be deleted.
 
 NOTE:
 """
-__version__ = 1.0
+__version__ = 1.2
 
 import os
 import json
@@ -45,6 +57,8 @@ domain = ''
 username = ''
 password = ''
 CAST_HOME = ''
+
+archive_delivery = False
 
 apps = []
 connection_profiles = []
@@ -378,18 +392,19 @@ def cleanup_deliveries(app_name, profile_name, dmt_info, log_folder):
         
         cli_command += '-connectionProfile "'
         cli_command += profile_name
-        cli_command += '" -appli '
+        cli_command += '" -appli "'
         cli_command += app_name 
-        cli_command += ' -version "'
+        cli_command += '" -version "'
         cli_command += version.get_name() 
         cli_command += '" -logRootPath "'
         # TODO: This should go to CAST_LOG folder.
         cli_command += log_folder
         cli_command += '"'
-
-        if not activate:
+        #TODO - MSH implemented workaround to check if version is empty then done run the exec command.
+        if (not activate or version.get_name() == ''):
             logger.info(msg.format(app_name, version_name, version.get_date(),'Archive' if archive_delivery else 'Delete', 'processed' ))
         else:
+            #logger.info('MSH CLI COMMAND :%s' % cli_command)
             exec_cli(cli_command)
 
 
@@ -492,7 +507,7 @@ if __name__ == "__main__":
     count = len(args)
     logger.debug('count:%d' % count)
 
-    # TODO: Should be able to clanup a single app.
+    # TODO: Should be able to cleanup a single app.
 
     activate=False
     if (count > 0):
@@ -503,6 +518,7 @@ if __name__ == "__main__":
                 activate = True
             elif (arg == '-archive'):
                 logger.info('The -archivre argurment activated. Only delivery source will be rmoved, no deliveries will be deleted.')
+                activate = True
                 archive_delivery = True
             elif (arg == '-cut_date'):
                 if (count <= index + 1):

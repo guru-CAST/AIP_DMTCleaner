@@ -1,3 +1,4 @@
 {
-    "git.autofetch": true
+    "git.autofetch": true,
+    "python.pythonPath": "C:\\Tools\\Python\\Python37\\python.exe"
 }
